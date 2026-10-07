@@ -36,14 +36,10 @@ export default function Admin() {
         return;
       }
 
-      const { data: profile } = await client
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+      const { data: adminCheck, error: adminError } = await client.rpc("is_admin");
 
-      if (profile?.role !== "admin") {
-        setMessage("Admin access required.");
+      if (adminError || adminCheck !== true) {
+        setMessage(adminError?.message || "Admin access required.");
         return;
       }
 

@@ -24,6 +24,7 @@ export default function Admin() {
   const [day, setDay] = useState(1);
   const [title, setTitle] = useState("Daily Placement Test");
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [bulkText, setBulkText] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -69,6 +70,71 @@ export default function Admin() {
         i === index ? { ...question, [field]: value } : question
       )
     );
+  }
+
+  function importBulkQuestions() {
+    const blocks = bulkText
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    const imported: Question[] = [];
+
+    for (const block of blocks) {
+      const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+      const get = (prefix: string) =>
+        lines.find((line) => line.toUpperCase().startsWith(prefix))
+          ?.slice(prefix.length)
+          .trim() ?? "";
+
+      const type = get("TYPE:").toLowerCase();
+      const question_text = get("QUESTION:");
+      const answer = get("ANSWER:").toUpperCase();
+
+      if (!question_text) continue;
+
+      if (type === "aptitude") {
+        const options = ["A:", "B:", "C:", "D:"].map((prefix) => get(prefix));
+        const correct_option = ["A", "B", "C", "D"].indexOf(answer);
+        if (options.some((option) => !option) || correct_option < 0) {
+          setMessage("Bulk import error: every aptitude question needs A, B, C, D and ANSWER.");
+          return;
+        }
+        imported.push({
+          section: "aptitude",
+          question_text,
+          options,
+          correct_option,
+        });
+      } else if (type === "sql") {
+        imported.push({
+          section: "sql",
+          question_text,
+          options: ["", "", "", ""],
+          correct_option: 0,
+        });
+      } else {
+        setMessage("Bulk import error: TYPE must be APTITUDE or SQL.");
+        return;
+      }
+    }
+
+    if (imported.length !== 22) {
+      setMessage(`Bulk import found ${imported.length} questions. You need exactly 22: 20 aptitude + 2 SQL.`);
+      return;
+    }
+
+    const aptitudeCount = imported.filter((q) => q.section === "aptitude").length;
+    const sqlCount = imported.filter((q) => q.section === "sql").length;
+
+    if (aptitudeCount !== 20 || sqlCount !== 2) {
+      setMessage("Bulk import needs exactly 20 aptitude and 2 SQL questions.");
+      return;
+    }
+
+    setQuestions(imported);
+    setBulkText("");
+    setMessage("22 questions imported successfully. Review them below, then publish.");
   }
 
   function updateOption(questionIndex: number, optionIndex: number, value: string) {
@@ -162,10 +228,44 @@ export default function Admin() {
         />
       </div>
 
+      <div className="card">
+        <h2>⚡ Bulk import 22 questions</h2>
+        <p className="muted">
+          Paste 22 questions at once. Separate each question with a blank line.
+          Use TYPE, QUESTION, A-D and ANSWER for aptitude; SQL only needs TYPE and QUESTION.
+        </p>
+        <textarea
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          rows={14}
+          placeholder={`TYPE: APTITUDE
+QUESTION: If a train travels 120 km in 2 hours, what is its speed?
+A: 40 km/h
+B: 50 km/h
+C: 60 km/h
+D: 80 km/h
+ANSWER: C
+
+TYPE: SQL
+QUESTION: Write a query to find the second highest salary from an Employee table.
+
+TYPE: APTITUDE
+QUESTION: ...
+A: ...
+B: ...
+C: ...
+D: ...
+ANSWER: A`}
+        />
+        <button className="secondary" onClick={importBulkQuestions} disabled={!bulkText.trim()}>
+          Import 22 Questions
+        </button>
+      </div>
+
       <div className="row">
         <h2>Questions {questions.length}/22</h2>
         <button className="secondary" onClick={addQuestion}>
-          + Add question
+          + Add question manually
         </button>
       </div>
 

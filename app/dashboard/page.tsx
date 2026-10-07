@@ -122,14 +122,14 @@ export default function Dashboard() {
               <p><b>{d.question_text}</b></p>
               {d.section === "aptitude" ? (
                 <>
-                  <p>Your answer: {d.selected_option === null ? "Not answered" : String.fromCharCode(65 + d.selected_option) + ". " + (d.options?.[d.selected_option] ?? "")}</p>
-                  <p>Correct answer: {d.correct_option === null ? "—" : String.fromCharCode(65 + d.correct_option) + ". " + (d.options?.[d.correct_option] ?? "")}</p>
+                  <p><b>Your answer:</b> {d.selected_option === null ? "Not answered" : String.fromCharCode(65 + d.selected_option) + ". " + (d.options?.[d.selected_option] ?? "")}</p>
+                  <p><b>Answer key:</b> {d.correct_option === null ? "—" : String.fromCharCode(65 + d.correct_option) + ". " + (d.options?.[d.correct_option] ?? "")}</p>
                 </>
               ) : (
                 <>
                   <p><b>Your SQL:</b></p>
                   <pre>{d.sql_answer || "Not answered"}</pre>
-                  <p><b>Expected result:</b></p>
+                  <p><b>Answer key (expected result):</b></p>
                   <pre>{JSON.stringify(d.sql_expected_result, null, 2)}</pre>
                 </>
               )}

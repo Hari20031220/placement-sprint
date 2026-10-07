@@ -27,6 +27,8 @@ export default function Admin() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [bulkText, setBulkText] = useState("");
   const [message, setMessage] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [latestTestId, setLatestTestId] = useState<number | null>(null);
 
   useEffect(() => {
     async function checkAdmin() {
@@ -56,6 +58,16 @@ export default function Admin() {
       if (data?.[0]) {
         setDay(data[0].day_number + 1);
       }
+
+      const { data: latestTest } = await client
+        .from("tests")
+        .select("id")
+        .eq("status", "published")
+        .order("day_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setLatestTestId(latestTest?.id ?? null);
     }
 
     checkAdmin();
@@ -161,6 +173,30 @@ export default function Admin() {
         return { ...question, options };
       })
     );
+  }
+
+
+  async function resetMyLatestAttempt() {
+    if (!latestTestId) return;
+    setResetMessage("Resetting your latest attempt...");
+    const client = supabase();
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) {
+      setResetMessage("Please sign in again.");
+      return;
+    }
+    const { error } = await client.rpc("reset_test_attempt", {
+      p_test_id: latestTestId,
+      p_user_id: user.id,
+    });
+    if (error) {
+      setResetMessage(error.message);
+      return;
+    }
+    try {
+      window.localStorage.removeItem(`placement-sprint-draft-${latestTestId}`);
+    } catch {}
+    setResetMessage("Your latest test attempt has been reset. Open Today's test again.");
   }
 
   async function publish() {
@@ -344,6 +380,16 @@ ANSWER: A`}
           )}
         </div>
       ))}
+
+
+      <div className="card">
+        <h2>Testing tools</h2>
+        <p className="muted">Development only: reset your own latest attempt without changing the questions.</p>
+        <button className="secondary" onClick={resetMyLatestAttempt} disabled={!latestTestId}>
+          Reset my latest attempt
+        </button>
+        {resetMessage && <p className="notice">{resetMessage}</p>}
+      </div>
 
       <button
         className="button"

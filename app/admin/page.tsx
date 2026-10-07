@@ -181,7 +181,7 @@ export default function Admin() {
         question_number: index + 1,
         section: q.section,
         question_text: q.question_text,
-        options: q.section === "aptitude" ? q.options : null,
+        options: q.options,
         correct_option: q.section === "aptitude" ? q.correct_option : null,
       }))
     );

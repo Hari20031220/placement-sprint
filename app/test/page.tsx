@@ -68,7 +68,7 @@ export default function Test() {
         return;
       }
 
-      let submission = existing;
+      let submission: { id: number; started_at: string; submitted_at?: string | null } | null = existing;
 
       if (!submission) {
         const { data: started, error: startError } = await client.rpc(

@@ -109,12 +109,24 @@ export default function Admin() {
           sql_expected_result: "",
         });
       } else if (type === "sql") {
+        const expected = get("EXPECTED:");
+        if (!expected) {
+          setMessage("Bulk import error: every SQL question needs EXPECTED JSON for automatic scoring.");
+          return;
+        }
+        try {
+          const parsed = JSON.parse(expected);
+          if (!parsed || !parsed.mode || parsed.value === undefined) throw new Error();
+        } catch {
+          setMessage("Bulk import error: EXPECTED must be valid JSON such as {\"mode\":\"scalar\",\"value\":60000}.");
+          return;
+        }
         imported.push({
           section: "sql",
           question_text,
           options: ["", "", "", ""],
           correct_option: 0,
-          sql_expected_result: get("EXPECTED:"),
+          sql_expected_result: expected,
         });
       } else {
         setMessage("Bulk import error: TYPE must be APTITUDE or SQL.");
@@ -157,6 +169,14 @@ export default function Admin() {
 
     if (questions.length !== 22 || aptitudeCount !== 20 || sqlCount !== 2) {
       setMessage("Add exactly 20 aptitude questions and 2 SQL questions.");
+      return;
+    }
+
+    const sqlMissingExpected = questions.some(
+      (q) => q.section === "sql" && !q.sql_expected_result
+    );
+    if (sqlMissingExpected) {
+      setMessage("Each SQL question needs EXPECTED JSON for automatic scoring.");
       return;
     }
 

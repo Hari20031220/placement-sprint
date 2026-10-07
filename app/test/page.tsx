@@ -1,2 +1,260 @@
-"use client"; import {useEffect,useState} from "react"; import {supabase} from "../../lib/supabase"; import {useRouter} from "next/navigation";
-type Q={id:number;question_number:number;section:"aptitude"|"sql";question_text:string;options:any}; export default function Test(){const [test,setTest]=useState<any>(null),[qs,setQs]=useState<Q[]>([]),[ans,setAns]=useState<Record<number,any>>({}),[sec,setSec]=useState(0),[sid,setSid]=useState<number|null>(null),[done,setDone]=useState(false),[msg,setMsg]=useState("");const router=useRouter();useEffect(()=>{load()},[]);async function load(){const s=supabase();const {data:{user}}=await s.auth.getUser();if(!user){router.push("/login");return}const {data:t,error}=await s.from("tests").select("id,day_number,title,duration_minutes").eq("status","published").order("day_number",{ascending:false}).limit(1).maybeSingle();if(error||!t){setMsg("No published test yet.");return}const {data:q, error:qe}=await s.from("questions").select("id,test_id,question_number,section,question_text,options").eq("test_id",t.id).order("question_number");if(qe){setMsg(qe.message);return}const {data:old}=await s.from("submissions").select("id,submitted_at,started_at").eq("test_id",t.id).eq("user_id",user.id).maybeSingle();if(old?.submitted_at){setMsg("You already completed today's test.");return}let sub=old;if(!sub){const {data,error:e}=await s.rpc("start_test",{p_test_id:t.id});if(e){setMsg(e.message);return}sub=data}setSid(sub.id);setTest(t);setQs(q||[]);setSec(Math.max(0,t.duration_minutes*60-Math.floor((Date.now()-new Date(sub.started_at).getTime())/1000)))}useEffect(()=>{if(!test||done||sid===null)return;const id=setInterval(()=>setSec(x=>{if(x<=1){clearInterval(id);submit(true);return 0}return x-1}),1000);return()=>clearInterval(id)},[test,done,sid]);async function submit(auto=false){if(done||sid===null)return;if(!auto&&!confirm("Submit the test now?"))return;setDone(true);const p:Record<string,any>={};qs.forEach(q=>{p[q.id]=q.section==="aptitude"?{selected_option:ans[q.id]===undefined?null:Number(ans[q.id])}:{sql_answer:ans[q.id]||""}});const {error}=await supabase().rpc("submit_test",{p_submission_id:sid,p_answers:p});if(error){setMsg(error.message);setDone(false);return}setMsg(auto?"Time is up — your test was submitted.":"Test submitted successfully.")}const answered=qs.filter(q=>ans[q.id]!==undefined&&ans[q.id]!=="").length,m=Math.floor(sec/60),ss=sec%60;if(!test)return <main className="center"><div className="card"><h1>{msg||"Loading…"}</h1><a className="button" href="/dashboard">Dashboard</a></div></main>;return <main className="shell"><div className="hero"><div><small>DAY {test.day_number}</small><h1>{test.title}</h1><p className="muted">20 aptitude + 2 SQL · 40 minutes · {answered}/{qs.length} answered</p></div><div className="card"><b>{String(m).padStart(2,"0")}:{String(ss).padStart(2,"0")}</b></div></div>{["aptitude","sql"].map(secName=><section key={secName}><h2>{secName==="aptitude"?"Aptitude":"SQL"}</h2>{qs.filter(q=>q.section===secName).map(q=><div className="card q" key={q.id}><b>{q.question_number}. {q.question_text}</b>{secName==="aptitude"?q.options?.map((o:string,i:number)=><label key={i} className="opt"><input type="radio" checked={Number(ans[q.id])===i} onChange={()=>setAns(a=>({...a,[q.id]:i}))}/>{String.fromCharCode(65+i)}. {o}</label>):<textarea value={ans[q.id]||""} onChange={e=>setAns(a=>({...a,[q.id]:e.target.value}))} placeholder="Write SQL here…"/>}</div>)}</section>)}<button className="button" disabled={done} onClick={()=>submit(false)}>Submit Test</button>{done&&<div className="card"><h2>{msg}</h2><a className="button" href="/dashboard">Go to dashboard</a></div>}</main>}
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
+
+type Question = {
+  id: number;
+  question_number: number;
+  section: "aptitude" | "sql";
+  question_text: string;
+  options: string[] | null;
+};
+
+export default function Test() {
+  const router = useRouter();
+  const [test, setTest] = useState<any>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<Record<number, any>>({});
+  const [seconds, setSeconds] = useState(0);
+  const [submissionId, setSubmissionId] = useState<number | null>(null);
+  const [done, setDone] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadTest() {
+      const client = supabase();
+      const { data: { user } } = await client.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: currentTest, error: testError } = await client
+        .from("tests")
+        .select("id,day_number,title,duration_minutes")
+        .eq("status", "published")
+        .order("day_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (testError || !currentTest) {
+        setMessage("No published test yet.");
+        return;
+      }
+
+      const { data: currentQuestions, error: questionError } = await client
+        .from("questions")
+        .select("id,test_id,question_number,section,question_text,options")
+        .eq("test_id", currentTest.id)
+        .order("question_number");
+
+      if (questionError) {
+        setMessage(questionError.message);
+        return;
+      }
+
+      const { data: existing } = await client
+        .from("submissions")
+        .select("id,submitted_at,started_at")
+        .eq("test_id", currentTest.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existing?.submitted_at) {
+        setMessage("You already completed today's test.");
+        return;
+      }
+
+      let submission = existing;
+
+      if (!submission) {
+        const { data: started, error: startError } = await client.rpc(
+          "start_test",
+          { p_test_id: currentTest.id }
+        );
+
+        if (startError) {
+          setMessage(startError.message);
+          return;
+        }
+
+        submission = started;
+      }
+
+      if (!submission) {
+        setMessage("Could not start the test.");
+        return;
+      }
+
+      const remaining = Math.max(
+        0,
+        currentTest.duration_minutes * 60 -
+          Math.floor((Date.now() - new Date(submission.started_at).getTime()) / 1000)
+      );
+
+      setSubmissionId(submission.id);
+      setTest(currentTest);
+      setQuestions(currentQuestions ?? []);
+      setSeconds(remaining);
+    }
+
+    loadTest();
+  }, [router]);
+
+  useEffect(() => {
+    if (!test || done || submissionId === null) return;
+
+    const timer = setInterval(() => {
+      setSeconds((value) => {
+        if (value <= 1) {
+          clearInterval(timer);
+          void submit(true);
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [test, done, submissionId]);
+
+  async function submit(auto = false) {
+    if (done || submissionId === null) return;
+
+    if (!auto && !window.confirm("Submit the test now?")) return;
+
+    setDone(true);
+
+    const payload: Record<string, any> = {};
+
+    questions.forEach((question) => {
+      payload[question.id] =
+        question.section === "aptitude"
+          ? {
+              selected_option:
+                answers[question.id] === undefined
+                  ? null
+                  : Number(answers[question.id]),
+            }
+          : {
+              sql_answer: answers[question.id] || "",
+            };
+    });
+
+    const { error } = await supabase().rpc("submit_test", {
+      p_submission_id: submissionId,
+      p_answers: payload,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setDone(false);
+      return;
+    }
+
+    setMessage(
+      auto
+        ? "Time is up — your test was submitted."
+        : "Test submitted successfully."
+    );
+  }
+
+  if (!test) {
+    return (
+      <main className="center">
+        <div className="card">
+          <h1>{message || "Loading..."}</h1>
+          <a className="button" href="/dashboard">Dashboard</a>
+        </div>
+      </main>
+    );
+  }
+
+  const answered = questions.filter(
+    (q) => answers[q.id] !== undefined && answers[q.id] !== ""
+  ).length;
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return (
+    <main className="shell">
+      <div className="hero">
+        <div>
+          <small>DAY {test.day_number}</small>
+          <h1>{test.title}</h1>
+          <p className="muted">
+            20 aptitude + 2 SQL · 40 minutes · {answered}/{questions.length} answered
+          </p>
+        </div>
+        <div className="card">
+          <b>
+            {String(minutes).padStart(2, "0")}:
+            {String(remainingSeconds).padStart(2, "0")}
+          </b>
+        </div>
+      </div>
+
+      {(["aptitude", "sql"] as const).map((section) => (
+        <section key={section}>
+          <h2>{section === "aptitude" ? "Aptitude" : "SQL"}</h2>
+
+          {questions
+            .filter((question) => question.section === section)
+            .map((question) => (
+              <div className="card q" key={question.id}>
+                <b>{question.question_number}. {question.question_text}</b>
+
+                {section === "aptitude" ? (
+                  question.options?.map((option, index) => (
+                    <label key={index} className="opt">
+                      <input
+                        type="radio"
+                        checked={Number(answers[question.id]) === index}
+                        onChange={() =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [question.id]: index,
+                          }))
+                        }
+                      />
+                      {String.fromCharCode(65 + index)}. {option}
+                    </label>
+                  ))
+                ) : (
+                  <textarea
+                    value={answers[question.id] || ""}
+                    onChange={(e) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [question.id]: e.target.value,
+                      }))
+                    }
+                    placeholder="Write SQL here..."
+                  />
+                )}
+              </div>
+            ))}
+        </section>
+      ))}
+
+      <button
+        className="button"
+        disabled={done}
+        onClick={() => void submit(false)}
+      >
+        Submit Test
+      </button>
+
+      {done && (
+        <div className="card">
+          <h2>{message}</h2>
+          <a className="button" href="/dashboard">Go to dashboard</a>
+        </div>
+      )}
+    </main>
+  );
+}

@@ -9,6 +9,7 @@ type Question = {
   question_text: string;
   options: string[];
   correct_option: number;
+  sql_expected_result?: string;
 };
 
 const newQuestion = (index: number): Question => ({
@@ -105,6 +106,7 @@ export default function Admin() {
           question_text,
           options,
           correct_option,
+          sql_expected_result: "",
         });
       } else if (type === "sql") {
         imported.push({
@@ -112,6 +114,7 @@ export default function Admin() {
           question_text,
           options: ["", "", "", ""],
           correct_option: 0,
+          sql_expected_result: get("EXPECTED:"),
         });
       } else {
         setMessage("Bulk import error: TYPE must be APTITUDE or SQL.");
@@ -183,6 +186,10 @@ export default function Admin() {
         question_text: q.question_text,
         options: q.options,
         correct_option: q.section === "aptitude" ? q.correct_option : null,
+        sql_expected_result:
+          q.section === "sql" && q.sql_expected_result
+            ? JSON.parse(q.sql_expected_result)
+            : null,
       }))
     );
 
@@ -247,6 +254,7 @@ ANSWER: C
 
 TYPE: SQL
 QUESTION: Write a query to find the second highest salary from an Employee table.
+EXPECTED: {"mode":"scalar","value":60000}
 
 TYPE: APTITUDE
 QUESTION: ...

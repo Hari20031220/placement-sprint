@@ -1,0 +1,2 @@
+import "./globals.css"; import Link from "next/link";
+export default function RootLayout({children}:{children:React.ReactNode}){return <><header><Link href="/" className="brand">Placement Sprint</Link><nav><Link href="/test">Test</Link><Link href="/dashboard">Dashboard</Link><Link href="/admin">Admin</Link></nav></header>{children}</>}

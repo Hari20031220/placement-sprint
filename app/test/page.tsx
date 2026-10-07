@@ -89,6 +89,14 @@ export default function Test() {
         return;
       }
 
+      const draftKey = `placement-sprint-draft-${currentTest.id}`;
+      try {
+        const saved = window.localStorage.getItem(draftKey);
+        if (saved) setAnswers(JSON.parse(saved));
+      } catch {
+        // Ignore invalid local draft.
+      }
+
       const remaining = Math.max(
         0,
         currentTest.duration_minutes * 60 -
@@ -103,6 +111,19 @@ export default function Test() {
 
     loadTest();
   }, [router]);
+
+  useEffect(() => {
+    if (!test || submissionId === null) return;
+
+    try {
+      window.localStorage.setItem(
+        `placement-sprint-draft-${test.id}`,
+        JSON.stringify(answers)
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [answers, test, submissionId]);
 
   useEffect(() => {
     if (!test || done || submissionId === null) return;
@@ -124,6 +145,18 @@ export default function Test() {
   async function submit(auto = false) {
     if (done || submissionId === null) return;
 
+    const sqlQuestions = questions.filter((q) => q.section === "sql");
+    const unansweredSql = sqlQuestions.filter(
+      (q) => !String(answers[q.id] ?? "").trim()
+    );
+
+    if (!auto && unansweredSql.length > 0) {
+      setMessage(
+        `Please enter SQL for Q${unansweredSql.map((q) => q.question_number).join(" and Q")} before submitting.`
+      );
+      return;
+    }
+
     if (!auto && !window.confirm("Submit the test now?")) return;
 
     setDone(true);
@@ -140,7 +173,7 @@ export default function Test() {
                   : Number(answers[question.id]),
             }
           : {
-              sql_answer: answers[question.id] || "",
+              sql_answer: String(answers[question.id] ?? "").trim(),
             };
     });
 
@@ -153,6 +186,12 @@ export default function Test() {
       setMessage(error.message);
       setDone(false);
       return;
+    }
+
+    try {
+      window.localStorage.removeItem(`placement-sprint-draft-${test.id}`);
+    } catch {
+      // Ignore storage errors.
     }
 
     setMessage(
@@ -174,7 +213,7 @@ export default function Test() {
   }
 
   const answered = questions.filter(
-    (q) => answers[q.id] !== undefined && answers[q.id] !== ""
+    (q) => answers[q.id] !== undefined && String(answers[q.id]).trim() !== ""
   ).length;
 
   const minutes = Math.floor(seconds / 60);
@@ -226,7 +265,7 @@ export default function Test() {
                   ))
                 ) : (
                   <textarea
-                    value={answers[question.id] || ""}
+                    value={answers[question.id] ?? ""}
                     onChange={(e) =>
                       setAnswers((current) => ({
                         ...current,
@@ -240,6 +279,8 @@ export default function Test() {
             ))}
         </section>
       ))}
+
+      {message && !done && <div className="card"><b>{message}</b></div>}
 
       <button
         className="button"

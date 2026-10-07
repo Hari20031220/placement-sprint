@@ -166,7 +166,6 @@ export default function Admin() {
         title,
         duration_minutes: 40,
         status: "published",
-        published_at: new Date().toISOString(),
       })
       .select()
       .single();

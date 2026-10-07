@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-let browserClient: ReturnType<typeof createClient> | undefined;
+let browserClient: any;
 
-export function supabase() {
+export function supabase(): any {
   if (!browserClient) {
     browserClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

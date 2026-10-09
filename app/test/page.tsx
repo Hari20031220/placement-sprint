@@ -20,6 +20,8 @@ export default function Test() {
   const [seconds, setSeconds] = useState(0);
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [done, setDone] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -68,45 +70,27 @@ export default function Test() {
         return;
       }
 
-      let submission: { id: number; started_at: string; submitted_at?: string | null } | null = existing;
-
-      if (!submission) {
-        const { data: started, error: startError } = await client.rpc(
-          "start_test",
-          { p_test_id: currentTest.id }
-        );
-
-        if (startError) {
-          setMessage(startError.message);
-          return;
-        }
-
-        submission = started;
-      }
-
-      if (!submission) {
-        setMessage("Could not start the test.");
-        return;
-      }
-
-      const draftKey = `placement-sprint-draft-${currentTest.id}`;
-      try {
-        const saved = window.localStorage.getItem(draftKey);
-        if (saved) setAnswers(JSON.parse(saved));
-      } catch {
-        // Ignore invalid local draft.
-      }
-
-      const remaining = Math.max(
-        0,
-        currentTest.duration_minutes * 60 -
-          Math.floor((Date.now() - new Date(submission.started_at).getTime()) / 1000)
-      );
-
-      setSubmissionId(submission.id);
       setTest(currentTest);
       setQuestions(currentQuestions ?? []);
-      setSeconds(remaining);
+
+      if (existing) {
+        const draftKey = `placement-sprint-draft-${currentTest.id}`;
+        try {
+          const saved = window.localStorage.getItem(draftKey);
+          if (saved) setAnswers(JSON.parse(saved));
+        } catch {
+          // Ignore invalid local draft.
+        }
+
+        const remaining = Math.max(
+          0,
+          currentTest.duration_minutes * 60 -
+            Math.floor((Date.now() - new Date(existing.started_at).getTime()) / 1000)
+        );
+        setSubmissionId(existing.id);
+        setSeconds(remaining);
+        setStarted(true);
+      }
     }
 
     loadTest();
@@ -126,7 +110,7 @@ export default function Test() {
   }, [answers, test, submissionId]);
 
   useEffect(() => {
-    if (!test || done || submissionId === null) return;
+    if (!test || !started || done || submissionId === null) return;
 
     const timer = setInterval(() => {
       setSeconds((value) => {
@@ -140,7 +124,24 @@ export default function Test() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [test, done, submissionId]);
+  }, [test, started, done, submissionId]);
+
+  async function startTest() {
+    if (!test || starting || started) return;
+    setStarting(true);
+    setMessage("");
+    const { data: startedSubmission, error } = await supabase().rpc("start_test", {
+      p_test_id: test.id,
+    });
+    setStarting(false);
+    if (error || !startedSubmission) {
+      setMessage(error?.message || "Could not start the test. Please try again.");
+      return;
+    }
+    setSubmissionId(startedSubmission.id);
+    setSeconds(test.duration_minutes * 60);
+    setStarted(true);
+  }
 
   async function submit(auto = false) {
     if (done || submissionId === null) return;
@@ -207,6 +208,25 @@ export default function Test() {
         <div className="card">
           <h1>{message || "Loading..."}</h1>
           <a className="button" href="/dashboard">Dashboard</a>
+        </div>
+      </main>
+    );
+  }
+
+  if (!started && test) {
+    return (
+      <main className="center">
+        <div className="card">
+          <small>DAY {test.day_number}</small>
+          <h1>{test.title}</h1>
+          <p>Ready to begin?</p>
+          <p className="muted">20 aptitude questions + 2 SQL questions · {test.duration_minutes} minutes.</p>
+          <p className="muted">The timer starts only when you press Start Test.</p>
+          {message && <p className="notice">{message}</p>}
+          <button className="button" disabled={starting} onClick={() => void startTest()}>
+            {starting ? "Starting..." : "Start Test"}
+          </button>
+          <p><a href="/dashboard">Back to dashboard</a></p>
         </div>
       </main>
     );

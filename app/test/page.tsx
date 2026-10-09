@@ -89,7 +89,7 @@ export default function Test() {
         );
         setSubmissionId(existing.id);
         setSeconds(remaining);
-        setStarted(true);
+        // Do not resume automatically; wait for the candidate to press Resume Test.
       }
     }
 
@@ -128,8 +128,15 @@ export default function Test() {
 
   async function startTest() {
     if (!test || starting || started) return;
-    setStarting(true);
     setMessage("");
+
+    // Existing unfinished attempt: resume only after an explicit click.
+    if (submissionId !== null) {
+      setStarted(true);
+      return;
+    }
+
+    setStarting(true);
     const { data: startedSubmission, error } = await supabase().rpc("start_test", {
       p_test_id: test.id,
     });
@@ -221,10 +228,10 @@ export default function Test() {
           <h1>{test.title}</h1>
           <p>Ready to begin?</p>
           <p className="muted">20 aptitude questions + 2 SQL questions · {test.duration_minutes} minutes.</p>
-          <p className="muted">The timer starts only when you press Start Test.</p>
+          <p className="muted">The timer starts only when you press the button below.</p>
           {message && <p className="notice">{message}</p>}
           <button className="button" disabled={starting} onClick={() => void startTest()}>
-            {starting ? "Starting..." : "Start Test"}
+            {starting ? "Starting..." : submissionId !== null ? "Resume Test" : "Start Test"}
           </button>
           <p><a href="/dashboard">Back to dashboard</a></p>
         </div>

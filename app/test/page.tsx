@@ -22,6 +22,7 @@ export default function Test() {
   const [done, setDone] = useState(false);
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [timeUp, setTimeUp] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -116,7 +117,8 @@ export default function Test() {
       setSeconds((value) => {
         if (value <= 1) {
           clearInterval(timer);
-          void submit(true);
+          setTimeUp(true);
+          setMessage("Time is up. Your answers are saved; please submit your test.");
           return 0;
         }
         return value - 1;
@@ -158,7 +160,7 @@ export default function Test() {
       (q) => !String(answers[q.id] ?? "").trim()
     );
 
-    if (!auto && unansweredSql.length > 0) {
+    if (!auto && !timeUp && unansweredSql.length > 0) {
       setMessage(
         `Please enter SQL for Q${unansweredSql.map((q) => q.question_number).join(" and Q")} before submitting.`
       );
@@ -203,9 +205,7 @@ export default function Test() {
     }
 
     setMessage(
-      auto
-        ? "Time is up — your test was submitted."
-        : "Test submitted successfully."
+      "Test submitted successfully."
     );
   }
 
@@ -279,6 +279,7 @@ export default function Test() {
                     <label key={index} className="opt">
                       <input
                         type="radio"
+                        disabled={timeUp}
                         checked={Number(answers[question.id]) === index}
                         onChange={() =>
                           setAnswers((current) => ({
@@ -292,6 +293,7 @@ export default function Test() {
                   ))
                 ) : (
                   <textarea
+                    disabled={timeUp}
                     value={answers[question.id] ?? ""}
                     onChange={(e) =>
                       setAnswers((current) => ({
@@ -308,6 +310,7 @@ export default function Test() {
       ))}
 
       {message && !done && <div className="card"><b>{message}</b></div>}
+      {timeUp && !done && <div className="card"><b>Time is up. Click Submit Test to submit your saved answers.</b></div>}
 
       <button
         className="button"

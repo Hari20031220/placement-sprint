@@ -118,7 +118,7 @@ export default function Test() {
         if (value <= 1) {
           clearInterval(timer);
           setTimeUp(true);
-          setMessage("Time is up. Your answers are saved; please submit your test.");
+          setMessage("Time is up. You can still answer questions, then click Submit Test.");
           return 0;
         }
         return value - 1;
@@ -279,7 +279,6 @@ export default function Test() {
                     <label key={index} className="opt">
                       <input
                         type="radio"
-                        disabled={timeUp}
                         checked={Number(answers[question.id]) === index}
                         onChange={() =>
                           setAnswers((current) => ({
@@ -293,7 +292,6 @@ export default function Test() {
                   ))
                 ) : (
                   <textarea
-                    disabled={timeUp}
                     value={answers[question.id] ?? ""}
                     onChange={(e) =>
                       setAnswers((current) => ({
@@ -310,7 +308,7 @@ export default function Test() {
       ))}
 
       {message && !done && <div className="card"><b>{message}</b></div>}
-      {timeUp && !done && <div className="card"><b>Time is up. Click Submit Test to submit your saved answers.</b></div>}
+      {timeUp && !done && <div className="card"><b>Time is up. You can still select options and write SQL. Click Submit Test when you are ready.</b></div>}
 
       <button
         className="button"
